@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package gossiping;
+
+message Reg {
+  string ip = 1;
+}
+
+message Data {
+  string text = 1;
+}
+
+message Void {}
+
+service Gossiping {
+  rpc Register (Reg) returns (Void) {}
+  rpc LocalRegister (Reg) returns (Void) {}
+  rpc Dessiminate (Data) returns (Void) {}
+}

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package tokenring;
+
+message Token {
+  uint64 num = 1;
+}
+
+message Void {}
+
+service Tokenring {
+  rpc Ring (Token) returns (Void) {}
+}
