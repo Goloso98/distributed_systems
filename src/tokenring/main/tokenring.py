@@ -58,10 +58,6 @@ class Lock(object):
     def getter(self):
         return self.lock
 
-    def setServer(self, server):
-        self.server = server
-
-
 
 class KeyboardThread(threading.Thread):
 
@@ -83,11 +79,7 @@ class KeyboardThread(threading.Thread):
                 with grpc.insecure_channel(self.uri) as channel:
                     stub = tokenring_pb2_grpc.TokenringStub(channel)
                     response = stub.Ring(Token(num=0))
-            elif inp == 'quit':
-                print("Quit")
-                self.lock.server.stop(3)
-                sys.exit(0)
-    pass
+
 
 def serve():
     with open("machines.txt") as f:
@@ -112,7 +104,6 @@ def serve():
     tokenring_pb2_grpc.add_TokenringServicer_to_server(Tokenring(nexturi, lock), server)
     server.add_insecure_port(myuri)
     server.start()
-    lock.setServer(server)
     print("Server started, listening on " + myuri)
     server.wait_for_termination()
 
