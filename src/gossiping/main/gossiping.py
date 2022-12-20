@@ -97,7 +97,7 @@ def newpeer(uri):
 
 
 def appendwords(uri):
-    lam = 5
+    lam = 30  # defined in moodle
     while True:
         wait = poisson(lam)
         sleep(wait)
