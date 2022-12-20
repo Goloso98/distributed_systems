@@ -1,12 +1,14 @@
 from concurrent import futures
+import concurrent.futures
 from time import sleep
 import json
+import asyncio
 import logging
 import sys
 import threading
 
 import grpc
-from tokenring_pb2 import Void, Token
+from tokenring_pb2 import Token, Void
 import tokenring_pb2_grpc
 
 
@@ -21,18 +23,21 @@ class Tokenring(tokenring_pb2_grpc.TokenringServicer):
         self.token = request.num
         self.token += 1
         print(f"Token: {str(self.token)}.")
-        context.add_callback(lambda: self.run())
+        # Schedule the run method to be run asynchronously
+        t = threading.Thread(target=self.run)
+        t.start()
+        #print("Token reply")
         return Void()
 
     def run(self):
         sleep(1)
         while self.lock.getter() == True:
             sleep(0.2)
-        print("Token 1st..." + str(self.token))
+        #print("Token 1st..." + str(self.token))
         with grpc.insecure_channel(self.uri) as channel:
             stub = tokenring_pb2_grpc.TokenringStub(channel)
             response = stub.Ring(Token(num=self.token))
-        print("Greeter client received")
+        #print("Greeter client received")
 
 
 class Lock(object):

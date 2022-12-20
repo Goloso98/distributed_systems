@@ -6,7 +6,7 @@ message Token {
   uint64 num = 1;
 }
 
-message Void {}
+message Void { }
 
 service Tokenring {
   rpc Ring (Token) returns (Void) {}
