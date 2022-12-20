@@ -1,0 +1,8 @@
+{
+    "l1": "localhost:50051",
+    "l2": "localhost:50052",
+    "l3": "localhost:50053",
+    "l4": "localhost:50054",
+    "l5": "localhost:50055",
+    "l6": "localhost:50056"
+}
