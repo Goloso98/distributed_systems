@@ -1,6 +1,6 @@
 import heapq
-import sys
 import json
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -43,8 +43,9 @@ class MulticastService(multicast_pb2_grpc.MulticastServiceServicer):
                 content=request.content
             )
             # Add to own queue to process when ready.
-            heapq.heappush(self.message_heap, (message.lamport_clock, message.kind, message))
+            heapq.heappush(self.message_heap, (message.lamport_clock, message.kind, message.sender, message))
             self.Broadcast(message)
+            #context.add_callback(lambda x: self.Broadcast(message))
             return Empty()
 
         # Update the Lamport clock.
@@ -58,30 +59,39 @@ class MulticastService(multicast_pb2_grpc.MulticastServiceServicer):
                 sender=self.sender,
                 kind=multicast_pb2.Kind.ACK
             )
+            #context.add_callback(lambda x: self.Broadcast(ack_message))
             self.Broadcast(ack_message)
 
         # Print the received message.
         print(f'[info] Received message from {request.sender} with Lamport clock {request.lamport_clock}')
 
         # Add the received message to the minheap.
-        heapq.heappush(self.message_heap, (request.lamport_clock, request.kind, request))
+        heapq.heappush(self.message_heap, (request.lamport_clock, request.kind, request.sender, request))
 
         # Check if it is time to process a new message.
         # Top of the heap has a tuple and the real message is in the 3rd possition.
-        topQ_kind = self.message_heap[0][2].kind
+        topQ_kind = self.message_heap[0][3].kind
+        # check if there are any message in queue before pop any ack, instead of len
+        while any(map(lambda x: x[3].kind == multicast_pb2.Kind.MESSAGE, self.message_heap)) and \
+                topQ_kind == multicast_pb2.Kind.ACK:
+            heapq.heappop(self.message_heap)
+            topQ_kind = self.message_heap[0][3].kind
 
         # Discard Ack Messages from the heap.
         if topQ_kind == multicast_pb2.Kind.ACK:
             heapq.heappop(self.message_heap)
         elif topQ_kind == multicast_pb2.Kind.MESSAGE:
             # Before doing anything, check if there are messages from everyone in the queue.
-            queue_senders = set(map(lambda x: x[2].sender, self.message_heap))
+            queue_senders = set(map(lambda x: x[3].sender, self.message_heap))
             queue_senders.discard(self.sender)
             # If Q has messages (Ack or Message) from all other peers,
             # it is possible to dispatch the top message.
+#            print("[info] before commit")
+#            print("[info] sendQ", queue_senders)
+#            print("[info] selfQ", self.message_heap)
             if queue_senders == set(self.peers):
                 msg = heapq.heappop(self.message_heap)
-                msg = msg[2]
+                msg = msg[3]
                 print(f'{msg.sender} says: {msg.content}')
 
         return Empty()
@@ -98,17 +108,16 @@ class MulticastService(multicast_pb2_grpc.MulticastServiceServicer):
 
     def Broadcast(self, message):
         # Broadcast message to all peers.
-        for peer in self.peers:
+        for peer_id in self.peers.values():
             try:
                 # Connect to the peer.
-                channel = grpc.insecure_channel(self.peers[peer])
+                channel = grpc.insecure_channel(peer_id)
                 stub = multicast_pb2_grpc.MulticastServiceStub(channel)
 
                 # Send the message.
                 stub.ReceiveMessage(message)
             except Exception as e:
-                print(f'Error sending message to peer {peer}: {e}')
-
+                print(f'Error sending message: {message} to peer {peer}: {e}')
 
 
 ## ---- main
