@@ -124,7 +124,7 @@ def generator_of_words(mine, mine_id):
     if input("Start generating words? y/n: ") != 'y':
         return
     print("[info] start generating words")
-    lam = 10  # defined in moodle
+    lam = 1  # defined in moodle
     while True:
         wait = poisson(lam)
         time.sleep(wait)
