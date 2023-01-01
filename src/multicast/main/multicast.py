@@ -1,8 +1,10 @@
 import heapq
 import json
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from numpy.random import poisson, randint
 
 import grpc
 import multicast_pb2
@@ -63,13 +65,14 @@ class MulticastService(multicast_pb2_grpc.MulticastServiceServicer):
             self.Broadcast(ack_message)
 
         # Print the received message.
-        print(f'[info] Received message from {request.sender} with Lamport clock {request.lamport_clock}')
+        # print(f'[info] Received message from {request.sender} with Lamport clock {request.lamport_clock}')
 
         # Add the received message to the minheap.
         heapq.heappush(self.message_heap, (request.lamport_clock, request.kind, request.sender, request))
+        #print("[info] heap: ", self.message_heap)
 
         # Check if it is time to process a new message.
-        # Top of the heap has a tuple and the real message is in the 3rd possition.
+        # Top of the heap has a tuple and the real message is in the 4rd possition.
         topQ_kind = self.message_heap[0][3].kind
         # check if there are any message in queue before pop any ack, instead of len
         while any(map(lambda x: x[3].kind == multicast_pb2.Kind.MESSAGE, self.message_heap)) and \
@@ -77,10 +80,7 @@ class MulticastService(multicast_pb2_grpc.MulticastServiceServicer):
             heapq.heappop(self.message_heap)
             topQ_kind = self.message_heap[0][3].kind
 
-        # Discard Ack Messages from the heap.
-        if topQ_kind == multicast_pb2.Kind.ACK:
-            heapq.heappop(self.message_heap)
-        elif topQ_kind == multicast_pb2.Kind.MESSAGE:
+        if topQ_kind == multicast_pb2.Kind.MESSAGE:
             # Before doing anything, check if there are messages from everyone in the queue.
             queue_senders = set(map(lambda x: x[3].sender, self.message_heap))
             queue_senders.discard(self.sender)
@@ -120,6 +120,35 @@ class MulticastService(multicast_pb2_grpc.MulticastServiceServicer):
                 print(f'Error sending message: {message} to peer {peer}: {e}')
 
 
+def generator_of_words(mine, mine_id):
+    if input("Start generating words? y/n: ") != 'y':
+        return
+    print("[info] start generating words")
+    lam = 10  # defined in moodle
+    while True:
+        wait = poisson(lam)
+        time.sleep(wait)
+        word = fetch()
+        with grpc.insecure_channel(mine_id) as channel:
+            stub = multicast_pb2_grpc.MulticastServiceStub(channel)
+            message = multicast_pb2.MulticastMessage(
+                lamport_clock=1,
+                sender=mine,
+                kind=multicast_pb2.Kind.MESSAGE,
+                content=word
+            )
+            print(f'Sending {word}...')
+            response = stub.ReceiveMessage(message)
+
+def fetch():
+    with open("words.txt") as f:
+        size = int(f.readline())
+        rnd = randint(1, size)
+        for _ in range(rnd):
+            f.readline()
+        word = f.readline().strip()
+        return word
+
 ## ---- main
 with open('peers.json', 'r') as f:
     peers = json.load(f)
@@ -133,7 +162,11 @@ if peername not in peers:
 server = grpc.server(ThreadPoolExecutor(max_workers=10))
 multicast_pb2_grpc.add_MulticastServiceServicer_to_server(MulticastService(peername), server)
 server.add_insecure_port(peers[peername])
-print("running")
+print(f'Running on {peername}@{peers[peername]}.')
+
+t = threading.Thread(target=generator_of_words, daemon=True, args=(peername, peers[peername],))
+t.start()
+
 server.start()
 
 try:
