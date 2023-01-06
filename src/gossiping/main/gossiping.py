@@ -29,7 +29,7 @@ class Gossiping(rpc.GossipingServicer):
         return Void()
 
     def Dessiminate(self, request, context):
-        print("Dessiminate", request.text)
+        print(request.text, "<-")
         self.shared.addWord(request.text)
         #context.add_callback(lambda: self.run(request.text))
         # Schedule the run method to be run asynchronously
@@ -38,20 +38,22 @@ class Gossiping(rpc.GossipingServicer):
         return Void()
 
     def run(self, word):
-        print("run")
+        if len(self.shared.peers) < 1:
+            return
+        # print("run")
         if self.shared.getWord(word) > 0:
             k = 1.5
             p = 1/k
             rnd = random()
             if rnd > p:
-                print("stop")
+                # print("stop")
                 return
         peer = self.shared.getrand()
-        print("choose", peer)
+        # print("choose", peer)
         with grpc.insecure_channel(peer) as channel:
             stub = rpc.GossipingStub(channel)
             response = stub.Dessiminate(Data(text=word))
-        print("Sent", peer, word)
+        print(word, "->", peer)
 
 
 class Share(object):
